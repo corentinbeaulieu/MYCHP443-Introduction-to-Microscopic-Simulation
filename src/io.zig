@@ -44,24 +44,22 @@ pub fn parseInput(allocator: Allocator, file: []u8) !common.Particules {
     return particules;
 }
 
-pub fn writePDB(allocator: Allocator, file: []u8, particules: common.Particules, iteration: usize) !void {
-    const open_file = std.fs.cwd().openFile(file, std.fs.File.OpenFlags{ .mode = .write_only }) catch |err| blk: {
-        switch (err) {
-            std.fs.File.OpenError.FileNotFound => break :blk try std.fs.cwd().createFile(file, std.fs.File.CreateFlags{ .read = true }),
-            else => return err,
-        }
-    };
+pub fn writePDB(file: []u8, particules: common.Particules, iteration: usize, truncate: bool) !void {
+    const open_file = try std.fs.cwd().createFile(file, std.fs.File.CreateFlags{ .read = true, .truncate = truncate });
     defer open_file.close();
+    try open_file.seekFromEnd(0);
 
-    const header = try std.fmt.allocPrint(allocator, "CRYST1 {0} {0} {0} 90.00 90.00 90.00 P 1\nMODEL {1}", .{ common.boxDim, iteration });
-    defer allocator.free(header);
+    var buffer: [128]u8 = undefined;
+    const header = try std.fmt.bufPrint(&buffer, "CRYST1 {0d: >8} {0d: >8} {0d: >8}  90.00  90.00  90.00 P             1\nMODEL  {1d: >7}\n", .{ common.boxDim, iteration });
     _ = try open_file.write(header);
 
-    const ligne = try std.fmt.allocPrint(allocator, "ATOM {d: >4} C 0 {d: >16} {d: >16} {d: >16}", .{ 100, particules.get(1).x, particules.get(1).y, particules.get(1).z });
-    defer allocator.free(ligne);
+    const particules_slice = particules.slice();
+    for (0..common.N_particules_total) |i| {
+        const particule = particules_slice.get(i);
+        const ligne = try std.fmt.bufPrint(&buffer, "ATOM  {d: >5}  C           0    {d: >8.3}{d: >8.3}{d: >8.3}                  MRES\n", .{ i + 1, particule.x, particule.y, particule.z });
+        _ = try open_file.write(ligne);
+    }
 
-    std.debug.print("{}\n", .{ligne.len});
-
-    const length = try open_file.write(ligne);
-    std.debug.print("{}\n", .{length});
+    const footer = "TER\nENDMDL\n";
+    _ = try open_file.write(footer);
 }

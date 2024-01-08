@@ -46,5 +46,5 @@ pub fn main() !void {
     std.debug.print("Energie: x = {e: >.3},\n\t y = {e: >.3},\n\t z = {e: >.3}\n", .{ fx, fy, fz });
 
     const output_file: []u8 = @constCast("test.pdb");
-    try io.writePDB(allocator, output_file, particules, 100);
+    try io.writePDB(output_file, particules, 100, true);
 }
